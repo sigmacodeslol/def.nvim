@@ -174,6 +174,32 @@ local function show_word(word)
       else
         lines = { "(Definition not found)" }
         highlights = { { 0, 0, #lines[1], "ErrorMsg" } }
+
+        local buf = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+        local bufopts = { scope = "local", buf = buf }
+        vim.api.nvim_set_option_value("modifiable", false, bufopts)
+        vim.api.nvim_set_option_value("bufhidden", "wipe", bufopts)
+
+        local width = math.min(config.width, math.max(40, #lines[1] + 4))
+        local height = 3
+        local win = vim.api.nvim_open_win(buf, false, {
+          relative = "editor",
+          width = width,
+          height = height,
+          col = (vim.o.columns - width) / 2,
+          row = (vim.o.lines - height) / 2,
+          style = "minimal",
+          border = "rounded",
+          title = "[word] " .. word,
+        })
+
+        vim.defer_fn(function()
+          if vim.api.nvim_win_is_valid(win) then
+            vim.api.nvim_win_close(win, true)
+          end
+        end, 2000) -- 2000 ms = 2 seconds
+        return
       end
 
       local buf = vim.api.nvim_create_buf(false, true)
@@ -277,9 +303,7 @@ function M.get_winfo(word, callback)
         for _, meaning in ipairs(data[1].meanings or {}) do
           table.insert(result, {
             partOfSpeech = meaning.partOfSpeech,
-            definitions = vim.tbl_map(function(def)
-              return def.definition
-            end, meaning.definitions or {}),
+            definitions = meaning.definitions or {},
             ipa = ipa,
           })
         end
