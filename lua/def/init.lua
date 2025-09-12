@@ -80,7 +80,7 @@ local function show_remap_help()
 end
 
 -- +-------------------------------------------------------+
--- [                   Show Word Window                   ]
+-- [                   Show Word Window                    ]
 -- +-------------------------------------------------------+
 local function show_word(word)
   if not word or word == "" then
@@ -114,18 +114,17 @@ local function show_word(word)
       local lines, highlights = {}, {}
       local ns = vim.api.nvim_create_namespace("def_lookup")
 
-      -- IPA
       if def_table and def_table[1].ipa then
         table.insert(lines, "Pronunciation: " .. def_table[1].ipa)
         table.insert(highlights, { 0, 0, #lines[#lines], "String" })
         table.insert(lines, "")
       end
 
-      -- Definitions
       if def_table then
         for _, meaning in ipairs(def_table) do
           table.insert(lines, "(" .. meaning.partOfSpeech .. ")")
           table.insert(highlights, { #lines - 1, 0, #lines[#lines], "Keyword" })
+
           for _, def in ipairs(meaning.definitions) do
             table.insert(lines, "  - " .. def)
             table.insert(highlights, { #lines - 1, 2, 4, "Comment" })
@@ -133,6 +132,42 @@ local function show_word(word)
               highlights,
               { #lines - 1, 4, #lines[#lines], "Normal" }
             )
+
+            -- Example
+            if def.example then
+              table.insert(lines, "    Example: " .. def.example)
+              table.insert(highlights, { #lines - 1, 4, 12, "Keyword" })
+              table.insert(
+                highlights,
+                { #lines - 1, 12, #lines[#lines], "String" }
+              )
+            end
+
+            -- Synonyms
+            if def.synonyms and #def.synonyms > 0 then
+              table.insert(
+                lines,
+                "    Synonyms: " .. table.concat(def.synonyms, ", ")
+              )
+              table.insert(highlights, { #lines - 1, 4, 13, "Keyword" })
+              table.insert(
+                highlights,
+                { #lines - 1, 13, #lines[#lines], "Identifier" }
+              )
+            end
+
+            -- Antonyms
+            if def.antonyms and #def.antonyms > 0 then
+              table.insert(
+                lines,
+                "    Antonyms: " .. table.concat(def.antonyms, ", ")
+              )
+              table.insert(highlights, { #lines - 1, 4, 12, "Keyword" })
+              table.insert(
+                highlights,
+                { #lines - 1, 12, #lines[#lines], "Identifier" }
+              )
+            end
           end
           table.insert(lines, "")
         end
@@ -141,17 +176,12 @@ local function show_word(word)
         highlights = { { 0, 0, #lines[1], "ErrorMsg" } }
       end
 
-      -- Create buffer
       local buf = vim.api.nvim_create_buf(false, true)
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
       local bufopts = { scope = "local", buf = buf }
       vim.api.nvim_set_option_value("modifiable", false, bufopts)
       vim.api.nvim_set_option_value("bufhidden", "wipe", bufopts)
-      vim.api.nvim_set_option_value("wrap", true, bufopts)
-      vim.api.nvim_set_option_value("linebreak", true, bufopts)
-      vim.api.nvim_set_option_value("breakindent", true, bufopts)
 
-      -- Add highlights
       for _, hl in ipairs(highlights) do
         local line, s, e, group = unpack(hl)
         ---@cast line integer
@@ -160,7 +190,6 @@ local function show_word(word)
         vim.api.nvim_buf_set_extmark(buf, ns, line, s, _opts)
       end
 
-      -- Smart window sizing
       local max_line_len = get_max_line_length(lines)
       local width = math.min(config.width, math.max(40, max_line_len + 4))
       local height = math.min(config.height, #lines + 2)
@@ -175,8 +204,10 @@ local function show_word(word)
         border = "rounded",
         title = "[word] " .. word,
       })
+      vim.wo[win].wrap = true
+      vim.wo[win].linebreak = true
+      vim.wo[win].breakindent = true
 
-      -- Keymaps: close window
       for _, key in ipairs({ "q", "<Esc>" }) do
         vim.keymap.set("n", key, function()
           if vim.api.nvim_win_is_valid(win) then
@@ -190,7 +221,6 @@ local function show_word(word)
         })
       end
 
-      -- Show help
       vim.keymap.set(
         "n",
         "?",
