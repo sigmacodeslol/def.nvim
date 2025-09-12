@@ -125,6 +125,17 @@ end
 function M.lookup(action)
   action = action or "lookup"
 
+  local function get_max_line_length(lines)
+    local max_len = 0
+    for _, line in ipairs(lines) do
+      local len = vim.str_utfindex(line, "utf-8")
+      if len > max_len then
+        max_len = len
+      end
+    end
+    return max_len
+  end
+
   local function show_word(word)
     if not word or word == "" then
       return vim.notify("No word provided", vim.log.levels.WARN)
@@ -147,7 +158,7 @@ function M.lookup(action)
       title = "[def.nvim]",
     })
 
-    -- Fetch definition asynchronously
+    -- Async word fetch
     M.get_winfo(word, function(def_table)
       vim.schedule(function()
         if vim.api.nvim_win_is_valid(loading_win) then
@@ -172,7 +183,6 @@ function M.lookup(action)
               highlights,
               { #lines - 1, 0, #lines[#lines], "Keyword" }
             )
-
             for _, def in ipairs(meaning.definitions) do
               table.insert(lines, "  - " .. def)
               table.insert(highlights, { #lines - 1, 2, 4, "Comment" })
@@ -188,7 +198,7 @@ function M.lookup(action)
           highlights = { { 0, 0, #lines[1], "ErrorMsg" } }
         end
 
-        -- Create buffer and set options
+        -- Create buffer
         local buf = vim.api.nvim_create_buf(false, true)
         vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
         vim.api.nvim_set_option_value(
@@ -202,23 +212,20 @@ function M.lookup(action)
           { scope = "local", buf = buf }
         )
 
-        -- Apply highlights
+        -- Add highlights
         for _, hl in ipairs(highlights) do
-          local line, start_col, end_col, group = unpack(hl)
+          local line, s, e, group = unpack(hl)
           ---@cast line integer
-          ---@cast start_col integer
-          ---@cast end_col integer
-          vim.api.nvim_buf_set_extmark(
-            buf,
-            ns,
-            line,
-            start_col,
-            { end_col = end_col, hl_group = group }
-          )
+          ---@cast s integer
+          local _opts = { end_col = e, hl_group = group }
+          vim.api.nvim_buf_set_extmark(buf, ns, line, s, _opts)
         end
 
-        -- Open floating window
-        local width, height = config.width, math.min(config.height, #lines + 2)
+        -- Smart window sizing
+        local max_line_len = get_max_line_length(lines)
+        local width = math.min(config.width, max_line_len + 4) -- padding
+        local height = math.min(config.height, #lines + 2)
+
         local win = vim.api.nvim_open_win(buf, true, {
           relative = "editor",
           width = width,
