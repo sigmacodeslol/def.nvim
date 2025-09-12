@@ -114,19 +114,18 @@ local function show_word(word)
       local lines, highlights = {}, {}
       local ns = vim.api.nvim_create_namespace("def_lookup")
 
-      if def_table and def_table[1].ipa then
-        table.insert(lines, "Pronunciation: " .. def_table[1].ipa)
-        table.insert(highlights, { 0, 0, #lines[#lines], "String" })
-        table.insert(lines, "")
-      end
-
       if def_table then
+        if def_table[1].ipa then
+          table.insert(lines, "Pronunciation: " .. def_table[1].ipa)
+          table.insert(highlights, { 0, 0, #lines[#lines], "String" })
+          table.insert(lines, "")
+        end
         for _, meaning in ipairs(def_table) do
           table.insert(lines, "(" .. meaning.partOfSpeech .. ")")
           table.insert(highlights, { #lines - 1, 0, #lines[#lines], "Keyword" })
 
-          for _, def in ipairs(meaning.definitions) do
-            table.insert(lines, "  - " .. def)
+          for _, defi in ipairs(meaning.definitions) do
+            table.insert(lines, "  - " .. defi.definition)
             table.insert(highlights, { #lines - 1, 2, 4, "Comment" })
             table.insert(
               highlights,
@@ -134,8 +133,8 @@ local function show_word(word)
             )
 
             -- Example
-            if def.example then
-              table.insert(lines, "    Example: " .. def.example)
+            if defi.example then
+              table.insert(lines, "    Example: " .. defi.example)
               table.insert(highlights, { #lines - 1, 4, 12, "Keyword" })
               table.insert(
                 highlights,
@@ -143,11 +142,11 @@ local function show_word(word)
               )
             end
 
-            -- Synonyms
-            if def.synonyms and #def.synonyms > 0 then
+            -- Definition Synonyms
+            if defi.synonyms and #defi.synonyms > 0 then
               table.insert(
                 lines,
-                "    Synonyms: " .. table.concat(def.synonyms, ", ")
+                "    Synonyms: " .. table.concat(defi.synonyms, ", ")
               )
               table.insert(highlights, { #lines - 1, 4, 13, "Keyword" })
               table.insert(
@@ -156,11 +155,11 @@ local function show_word(word)
               )
             end
 
-            -- Antonyms
-            if def.antonyms and #def.antonyms > 0 then
+            -- Definition Antonyms
+            if defi.antonyms and #defi.antonyms > 0 then
               table.insert(
                 lines,
-                "    Antonyms: " .. table.concat(def.antonyms, ", ")
+                "    Antonyms: " .. table.concat(defi.antonyms, ", ")
               )
               table.insert(highlights, { #lines - 1, 4, 12, "Keyword" })
               table.insert(
@@ -169,8 +168,31 @@ local function show_word(word)
               )
             end
           end
-          table.insert(lines, "")
         end
+        if def_table[1].synonyms and #def_table[1].synonyms > 0 then
+          table.insert(lines, "")
+          table.insert(
+            lines,
+            "synonyms: " .. table.concat(def_table[1].synonyms, ", ")
+          )
+          table.insert(highlights, { #lines - 1, 0, 8, "Keyword" })
+          table.insert(
+            highlights,
+            { #lines - 1, 10, #lines[#lines], "Identifier" }
+          )
+        end
+        if def_table[1].antonyms and #def_table[1].antonyms > 0 then
+          table.insert(
+            lines,
+            "antonyms: " .. table.concat(def_table[1].antonyms, ", ")
+          )
+          table.insert(highlights, { #lines - 1, 0, 8, "Keyword" })
+          table.insert(
+            highlights,
+            { #lines - 1, 10, #lines[#lines], "Identifier" }
+          )
+        end
+        table.insert(lines, "")
       else
         lines = { "(Definition not found)" }
         highlights = { { 0, 0, #lines[1], "ErrorMsg" } }
@@ -289,6 +311,7 @@ function M.get_winfo(word, callback)
           return
         end
 
+        -- Get IPA if available
         local ipa
         if data[1].phonetics then
           for _, ph in ipairs(data[1].phonetics) do
@@ -301,10 +324,22 @@ function M.get_winfo(word, callback)
 
         local result = {}
         for _, meaning in ipairs(data[1].meanings or {}) do
+          local defs = {}
+          for _, d in ipairs(meaning.definitions or {}) do
+            table.insert(defs, {
+              definition = d.definition,
+              example = d.example,
+              synonyms = d.synonyms or {},
+              antonyms = d.antonyms or {},
+            })
+          end
+
           table.insert(result, {
             partOfSpeech = meaning.partOfSpeech,
-            definitions = meaning.definitions or {},
             ipa = ipa,
+            definitions = defs,
+            synonyms = meaning.synonyms or {},
+            antonyms = meaning.antonyms or {},
           })
         end
 
