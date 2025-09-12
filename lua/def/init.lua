@@ -1,5 +1,11 @@
 ---@diagnostic disable: undefined-doc-param
+
+-- +-------------------------------------------------------+
+-- [                       def.nvim                        ]
+-- +-------------------------------------------------------+
 local M = {}
+local hh = require("def.history")
+local fn = require("def.f").fn
 
 -- +-------------------------------------------------------+
 -- [                        Config                         ]
@@ -70,8 +76,9 @@ local function show_remap_help()
     title = "[ Help ]",
   })
 
+  local map = vim.keymap.set
   for _, key in ipairs({ "q", "<Esc>" }) do
-    vim.keymap.set("n", key, function()
+    map("n", key, function()
       if vim.api.nvim_win_is_valid(win) then
         vim.api.nvim_win_close(win, true)
       end
@@ -215,6 +222,10 @@ local function show_word(word)
           border = "rounded",
           title = "[word] " .. word,
         })
+        ---@diagnostic disable-next-line: redefined-local
+        local bufopts = { scope = "local", buf = buf }
+        vim.api.nvim_set_option_value("modifiable", false, bufopts)
+        vim.api.nvim_set_option_value("bufhidden", "wipe", bufopts)
 
         vim.defer_fn(function()
           if vim.api.nvim_win_is_valid(win) then
@@ -256,25 +267,24 @@ local function show_word(word)
       vim.wo[win].linebreak = true
       vim.wo[win].breakindent = true
 
+      local map = vim.keymap.set
+      local opts = {
+        buffer = buf,
+        nowait = true,
+        noremap = true,
+        silent = true,
+      }
       for _, key in ipairs({ "q", "<Esc>" }) do
-        vim.keymap.set("n", key, function()
+        map("n", key, function()
           if vim.api.nvim_win_is_valid(win) then
             vim.api.nvim_win_close(win, true)
           end
-        end, {
-          buffer = buf,
-          nowait = true,
-          noremap = true,
-          silent = true,
-        })
+        end, opts)
       end
 
-      vim.keymap.set(
-        "n",
-        "?",
-        show_remap_help,
-        { buffer = buf, nowait = true, noremap = true, silent = true }
-      )
+      map("n", "?", show_remap_help, opts)
+
+      hh.add(word)
     end)
   end)
 end
@@ -352,7 +362,7 @@ end
 -- +-------------------------------------------------------+
 -- [                   Public Lookup                       ]
 -- +-------------------------------------------------------+
----@param action? string
+---@param action? '"lookup"'|'"word"'|'"wotd"'|'"history"'
 function M.lookup(action)
   action = action or "lookup"
 
@@ -371,10 +381,16 @@ function M.lookup(action)
           .. math.random(3, 9),
       }, { text = true }, function(obj)
         vim.schedule(function()
-          show_word(vim.fn.json_decode(obj.stdout)[1])
+          local ok, words = pcall(vim.fn.json_decode, obj.stdout)
+          if ok and type(words) == "table" and words[1] then
+            show_word(words[1])
+          else
+            vim.notify("Failed to fetch random word", vim.log.levels.WARN)
+          end
         end)
       end)
     end,
+    history = fn(hh.telescope_picker, show_word),
   }
 
   if actions[action] then
