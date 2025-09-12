@@ -136,11 +136,11 @@ function M.lookup(action)
     })
 
     -- Map 'q' to close
-    require("utils.map").nmap("q", function()
+    vim.keymap.set("n", "q", function()
       if vim.api.nvim_win_is_valid(win) then
         vim.api.nvim_win_close(win, true)
       end
-    end, { buffer = buf, nowait = true })
+    end, { buffer = buf, nowait = true, noremap = true, silent = true })
   end
 
   if action == "word" then
