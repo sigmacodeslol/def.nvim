@@ -14,6 +14,51 @@ function M.setup(opts)
   end
 end
 
+--- Show remap help inside the buffer
+---@param win number
+---@param buf number
+local function show_remap_help(win, buf)
+  local help_lines = {
+    "keymaps:",
+    "",
+    "  q   → Close the window",
+    "  ?   → Show this help",
+  }
+
+  -- Create a new buffer for help
+  local help_buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(help_buf, 0, -1, false, help_lines)
+  vim.api.nvim_set_option_value(
+    "modifiable",
+    false,
+    { scope = "local", buf = help_buf }
+  )
+  vim.api.nvim_set_option_value(
+    "bufhidden",
+    "wipe",
+    { scope = "local", buf = help_buf }
+  )
+
+  local width, height = 40, #help_lines + 2
+  local help_win = vim.api.nvim_open_win(help_buf, true, {
+    relative = "editor",
+    width = width,
+    height = height,
+    col = (vim.o.columns - width) / 2,
+    row = (vim.o.lines - height) / 2,
+    style = "minimal",
+    border = "rounded",
+    title = "[ Help ]",
+  })
+
+  -- Map q to close help window
+  vim.keymap.set("n", "q", function()
+    if vim.api.nvim_win_is_valid(help_win) then
+      vim.api.nvim_win_close(help_win, true)
+    end
+  end, { buffer = help_buf, nowait = true, noremap = true, silent = true })
+end
+
 --- Fetch word definition from online dictionary, including IPA
 ---@param word string
 ---@return table|nil
@@ -140,6 +185,10 @@ function M.lookup(action)
       if vim.api.nvim_win_is_valid(win) then
         vim.api.nvim_win_close(win, true)
       end
+    end, { buffer = buf, nowait = true, noremap = true, silent = true })
+
+    vim.keymap.set("n", "?", function()
+      show_remap_help(win, buf)
     end, { buffer = buf, nowait = true, noremap = true, silent = true })
   end
 
