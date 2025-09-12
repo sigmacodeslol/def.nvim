@@ -9,6 +9,9 @@ local config = {
   height = 36,
 }
 
+-- +-------------------------------------------------------+
+-- [                        Setup                          ]
+-- +-------------------------------------------------------+
 function M.setup(opts)
   if opts then
     for k, v in pairs(opts) do
@@ -17,9 +20,23 @@ function M.setup(opts)
   end
 end
 
---- Show remap help inside the buffer
----@param _win number
----@param _buf number
+-- +-------------------------------------------------------+
+-- [                   Helper Functions                    ]
+-- +-------------------------------------------------------+
+local function get_max_line_length(lines)
+  local max_len = 0
+  for _, line in ipairs(lines) do
+    local len = vim.str_utfindex(line, "utf-8")
+    if len > max_len then
+      max_len = len
+    end
+  end
+  return max_len
+end
+
+-- +-------------------------------------------------------+
+-- [                  Show Remap Help                      ]
+-- +-------------------------------------------------------+
 local function show_remap_help()
   local help_lines = {
     "keymaps:",
@@ -62,10 +79,133 @@ local function show_remap_help()
   end
 end
 
---- Fetch word definition from online dictionary, including IPA
+-- +-------------------------------------------------------+
+-- [                   Show Word Window                   ]
+-- +-------------------------------------------------------+
+local function show_word(word)
+  if not word or word == "" then
+    return vim.notify("No word provided", vim.log.levels.WARN)
+  end
+
+  -- Loading window
+  local loading_buf = vim.api.nvim_create_buf(false, true)
+  local loading_msg = "Loading definition for: " .. word .. " ..."
+  vim.api.nvim_buf_set_lines(loading_buf, 0, -1, false, { loading_msg })
+
+  local loading_width = math.max(40, #loading_msg + 2)
+  local loading_win = vim.api.nvim_open_win(loading_buf, true, {
+    relative = "editor",
+    width = loading_width,
+    height = 3,
+    col = (vim.o.columns - loading_width) / 2,
+    row = (vim.o.lines - 3) / 2,
+    style = "minimal",
+    border = "rounded",
+    title = "[def.nvim]",
+  })
+
+  -- Fetch definition asynchronously
+  M.get_winfo(word, function(def_table)
+    vim.schedule(function()
+      if vim.api.nvim_win_is_valid(loading_win) then
+        vim.api.nvim_win_close(loading_win, true)
+      end
+
+      local lines, highlights = {}, {}
+      local ns = vim.api.nvim_create_namespace("def_lookup")
+
+      -- IPA
+      if def_table and def_table[1].ipa then
+        table.insert(lines, "Pronunciation: " .. def_table[1].ipa)
+        table.insert(highlights, { 0, 0, #lines[#lines], "String" })
+        table.insert(lines, "")
+      end
+
+      -- Definitions
+      if def_table then
+        for _, meaning in ipairs(def_table) do
+          table.insert(lines, "(" .. meaning.partOfSpeech .. ")")
+          table.insert(highlights, { #lines - 1, 0, #lines[#lines], "Keyword" })
+          for _, def in ipairs(meaning.definitions) do
+            table.insert(lines, "  - " .. def)
+            table.insert(highlights, { #lines - 1, 2, 4, "Comment" })
+            table.insert(
+              highlights,
+              { #lines - 1, 4, #lines[#lines], "Normal" }
+            )
+          end
+          table.insert(lines, "")
+        end
+      else
+        lines = { "(Definition not found)" }
+        highlights = { { 0, 0, #lines[1], "ErrorMsg" } }
+      end
+
+      -- Create buffer
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+      local bufopts = { scope = "local", buf = buf }
+      vim.api.nvim_set_option_value("modifiable", false, bufopts)
+      vim.api.nvim_set_option_value("bufhidden", "wipe", bufopts)
+      vim.api.nvim_set_option_value("wrap", true, bufopts)
+      vim.api.nvim_set_option_value("linebreak", true, bufopts)
+      vim.api.nvim_set_option_value("breakindent", true, bufopts)
+
+      -- Add highlights
+      for _, hl in ipairs(highlights) do
+        local line, s, e, group = unpack(hl)
+        ---@cast line integer
+        ---@cast s integer
+        local _opts = { end_col = e, hl_group = group }
+        vim.api.nvim_buf_set_extmark(buf, ns, line, s, _opts)
+      end
+
+      -- Smart window sizing
+      local max_line_len = get_max_line_length(lines)
+      local width = math.min(config.width, math.max(40, max_line_len + 4))
+      local height = math.min(config.height, #lines + 2)
+
+      local win = vim.api.nvim_open_win(buf, true, {
+        relative = "editor",
+        width = width,
+        height = height,
+        col = (vim.o.columns - width) / 2,
+        row = (vim.o.lines - height) / 2,
+        style = "minimal",
+        border = "rounded",
+        title = "[word] " .. word,
+      })
+
+      -- Keymaps: close window
+      for _, key in ipairs({ "q", "<Esc>" }) do
+        vim.keymap.set("n", key, function()
+          if vim.api.nvim_win_is_valid(win) then
+            vim.api.nvim_win_close(win, true)
+          end
+        end, {
+          buffer = buf,
+          nowait = true,
+          noremap = true,
+          silent = true,
+        })
+      end
+
+      -- Show help
+      vim.keymap.set(
+        "n",
+        "?",
+        show_remap_help,
+        { buffer = buf, nowait = true, noremap = true, silent = true }
+      )
+    end)
+  end)
+end
+
+-- +-------------------------------------------------------+
+-- [                  Fetch Word Definition               ]
+-- +-------------------------------------------------------+
 ---@param word string
 ---@param callback fun(result: table|nil)
-
 function M.get_winfo(word, callback)
   if not word or word == "" then
     callback(nil)
@@ -120,147 +260,12 @@ function M.get_winfo(word, callback)
   )
 end
 
---- Show word definition in floating window
+-- +-------------------------------------------------------+
+-- [                   Public Lookup                       ]
+-- +-------------------------------------------------------+
 ---@param action? string
 function M.lookup(action)
   action = action or "lookup"
-
-  local function get_max_line_length(lines)
-    local max_len = 0
-    for _, line in ipairs(lines) do
-      local len = vim.str_utfindex(line, "utf-8")
-      if len > max_len then
-        max_len = len
-      end
-    end
-    return max_len
-  end
-
-  local function show_word(word)
-    if not word or word == "" then
-      return vim.notify("No word provided", vim.log.levels.WARN)
-    end
-
-    -- Loading window
-    local loading_buf = vim.api.nvim_create_buf(false, true)
-    local loading_msg = "Loading definition for: " .. word .. " ..."
-    vim.api.nvim_buf_set_lines(loading_buf, 0, -1, false, { loading_msg })
-
-    local loading_width = math.max(40, #loading_msg + 2)
-    local loading_win = vim.api.nvim_open_win(loading_buf, true, {
-      relative = "editor",
-      width = loading_width,
-      height = 3,
-      col = (vim.o.columns - loading_width) / 2,
-      row = (vim.o.lines - 3) / 2,
-      style = "minimal",
-      border = "rounded",
-      title = "[def.nvim]",
-    })
-
-    -- Async word fetch
-    M.get_winfo(word, function(def_table)
-      vim.schedule(function()
-        if vim.api.nvim_win_is_valid(loading_win) then
-          vim.api.nvim_win_close(loading_win, true)
-        end
-
-        local lines, highlights = {}, {}
-        local ns = vim.api.nvim_create_namespace("def_lookup")
-
-        -- IPA
-        if def_table and def_table[1].ipa then
-          table.insert(lines, "Pronunciation: " .. def_table[1].ipa)
-          table.insert(highlights, { 0, 0, #lines[#lines], "String" })
-          table.insert(lines, "")
-        end
-
-        -- Definitions
-        if def_table then
-          for _, meaning in ipairs(def_table) do
-            table.insert(lines, "(" .. meaning.partOfSpeech .. ")")
-            table.insert(
-              highlights,
-              { #lines - 1, 0, #lines[#lines], "Keyword" }
-            )
-            for _, def in ipairs(meaning.definitions) do
-              table.insert(lines, "  - " .. def)
-              table.insert(highlights, { #lines - 1, 2, 4, "Comment" })
-              table.insert(
-                highlights,
-                { #lines - 1, 4, #lines[#lines], "Normal" }
-              )
-            end
-            table.insert(lines, "")
-          end
-        else
-          lines = { "(Definition not found)" }
-          highlights = { { 0, 0, #lines[1], "ErrorMsg" } }
-        end
-
-        -- Create buffer
-        local buf = vim.api.nvim_create_buf(false, true)
-        vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-        vim.api.nvim_set_option_value(
-          "modifiable",
-          false,
-          { scope = "local", buf = buf }
-        )
-        vim.api.nvim_set_option_value(
-          "bufhidden",
-          "wipe",
-          { scope = "local", buf = buf }
-        )
-
-        -- Add highlights
-        for _, hl in ipairs(highlights) do
-          local line, s, e, group = unpack(hl)
-          ---@cast line integer
-          ---@cast s integer
-          local _opts = { end_col = e, hl_group = group }
-          vim.api.nvim_buf_set_extmark(buf, ns, line, s, _opts)
-        end
-
-        -- Smart window sizing
-        local max_line_len = get_max_line_length(lines)
-        local width = math.min(config.width, max_line_len + 4) -- padding
-        local height = math.min(config.height, #lines + 2)
-
-        local win = vim.api.nvim_open_win(buf, true, {
-          relative = "editor",
-          width = width,
-          height = height,
-          col = (vim.o.columns - width) / 2,
-          row = (vim.o.lines - height) / 2,
-          style = "minimal",
-          border = "rounded",
-          title = "[word] " .. word,
-        })
-
-        -- Keymaps: close window
-        for _, key in ipairs({ "q", "<Esc>" }) do
-          vim.keymap.set("n", key, function()
-            if vim.api.nvim_win_is_valid(win) then
-              vim.api.nvim_win_close(win, true)
-            end
-          end, {
-            buffer = buf,
-            nowait = true,
-            noremap = true,
-            silent = true,
-          })
-        end
-
-        -- Show help
-        vim.keymap.set(
-          "n",
-          "?",
-          show_remap_help,
-          { buffer = buf, nowait = true, noremap = true, silent = true }
-        )
-      end)
-    end)
-  end
 
   if action == "word" then
     show_word(vim.fn.expand("<cword>"))
@@ -269,4 +274,7 @@ function M.lookup(action)
   end
 end
 
+-- +-------------------------------------------------------+
+-- [                        Return                         ]
+-- +-------------------------------------------------------+
 return M
