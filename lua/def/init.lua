@@ -356,10 +356,31 @@ end
 function M.lookup(action)
   action = action or "lookup"
 
-  if action == "word" then
-    show_word(vim.fn.expand("<cword>"))
+  local actions = {
+    word = function()
+      show_word(vim.fn.expand("<cword>"))
+    end,
+    lookup = function()
+      vim.ui.input({ prompt = "Word to look up: " }, show_word)
+    end,
+    wotd = function()
+      vim.system({
+        "curl",
+        "-s",
+        "https://random-word-api.vercel.app/api?words=1&length="
+          .. math.random(3, 9),
+      }, { text = true }, function(obj)
+        vim.schedule(function()
+          show_word(vim.fn.json_decode(obj.stdout)[1])
+        end)
+      end)
+    end,
+  }
+
+  if actions[action] then
+    actions[action]()
   else
-    vim.ui.input({ prompt = "Word to look up: " }, show_word)
+    vim.notify("Invalid action: " .. action, vim.log.levels.ERROR)
   end
 end
 
