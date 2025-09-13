@@ -7,10 +7,11 @@ local history_file = data_path .. "/history.json"
 vim.fn.mkdir(data_path, "p")
 
 -- Config
-M.max_size = 50
+M.max_size = 50 -- max number of entries
 M.entries = {} -- in-memory history
+M.expire_seconds = 24 * 60 * 60 -- 1 day
 
--- Load history from disk
+-- Load history from disk and remove expired entries
 function M.load()
   local f = io.open(history_file, "r")
   if f then
@@ -18,7 +19,16 @@ function M.load()
     f:close()
     local ok, tbl = pcall(vim.fn.json_decode, content)
     if ok and type(tbl) == "table" then
-      M.entries = tbl
+      local now = os.time()
+      local valid = {}
+      for _, item in ipairs(tbl) do
+        if type(item) == "table" and item.word and item.timestamp then
+          if now - item.timestamp <= M.expire_seconds then
+            table.insert(valid, item)
+          end
+        end
+      end
+      M.entries = valid
     end
   end
 end
@@ -38,15 +48,16 @@ function M.add(word)
   if not word or word == "" then
     return
   end
+  local now = os.time()
 
   -- Remove duplicates
   for i = #M.entries, 1, -1 do
-    if M.entries[i] == word then
+    if M.entries[i].word == word then
       table.remove(M.entries, i)
     end
   end
 
-  table.insert(M.entries, 1, word) -- newest first
+  table.insert(M.entries, 1, { word = word, timestamp = now }) -- newest first
 
   -- Enforce max size
   if #M.entries > M.max_size then
@@ -62,13 +73,34 @@ function M.clear()
   M.save()
 end
 
--- Get a copy of the current history
+-- Get a list of current words (filtered for expired)
 ---@return string[]
 function M.get()
-  return vim.tbl_deep_extend("force", {}, M.entries)
+  local now = os.time()
+  local words = {}
+  for _, item in ipairs(M.entries) do
+    if now - item.timestamp <= M.expire_seconds then
+      table.insert(words, item.word)
+    end
+  end
+  return words
+end
+
+-- Check if a word exists in history
+---@param word string
+---@return boolean
+function M.has(word)
+  local now = os.time()
+  for _, item in ipairs(M.entries) do
+    if item.word == word and now - item.timestamp <= M.expire_seconds then
+      return true
+    end
+  end
+  return false
 end
 
 -- Telescope picker integration
+---@param show_word fun(word: string)
 function M.telescope_picker(show_word)
   local ok, telescope = pcall(require, "telescope")
   if not ok then
@@ -86,7 +118,7 @@ function M.telescope_picker(show_word)
     .new({}, {
       prompt_title = "Word History",
       finder = finders.new_table({
-        results = M.entries,
+        results = M.get(),
       }),
       sorter = conf.generic_sorter({}),
       attach_mappings = function(prompt_bufnr, map)
