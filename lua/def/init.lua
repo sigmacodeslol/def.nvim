@@ -253,6 +253,11 @@ local function show_word(word)
 
   -- Fetch definition asynchronously
   M.get_winfo(word, function(def_table)
+    local function close_win(win)
+      if vim.api.nvim_win_is_valid(win) then
+        vim.api.nvim_win_close(win, true)
+      end
+    end
     vim.schedule(function()
       if vim.api.nvim_win_is_valid(loading_win) then
         vim.api.nvim_win_close(loading_win, true)
@@ -265,11 +270,6 @@ local function show_word(word)
           "word",
           word
         )
-        local function close_win()
-          if vim.api.nvim_win_is_valid(error_win) then
-            vim.api.nvim_win_close(error_win, true)
-          end
-        end
 
         vim.defer_fn(close_win, 2000)
         return
@@ -286,11 +286,7 @@ local function show_word(word)
         silent = true,
       }
       for _, key in ipairs({ "q", "<Esc>" }) do
-        vim.keymap.set("n", key, function()
-          if vim.api.nvim_win_is_valid(win) then
-            vim.api.nvim_win_close(win, true)
-          end
-        end, opts)
+        vim.keymap.set("n", key, fn(close_win, win), opts)
       end
       vim.keymap.set("n", "?", show_remap_help, opts)
       vim.keymap.set("n", "ga", fn(favs.add, word), opts)
