@@ -1,10 +1,9 @@
----@diagnostic disable: undefined-doc-param
-
 -- +-------------------------------------------------------+
 -- [                       def.nvim                        ]
 -- +-------------------------------------------------------+
 local M = {}
 local config = require("def.config")
+local api = require("def.api")
 local ui = require("def.ui")(config)
 local hh = require("def.history")
 local favs = require("def.favorites")
@@ -22,10 +21,6 @@ function M.setup(opts)
     end
   end
 end
-
--- +-------------------------------------------------------+
--- [                   Helper Functions                    ]
--- +-------------------------------------------------------+
 
 ---Return the first non-empty value for a given key in a table
 ---@param tbl table[]
@@ -69,7 +64,7 @@ local function show_word(word)
   })
 
   -- Fetch definition asynchronously
-  M.get_winfo(word, function(def_table)
+  api.get_winfo(word, function(def_table)
     local function close_win(win)
       if vim.api.nvim_win_is_valid(win) then
         vim.api.nvim_win_close(win, true)
@@ -116,69 +111,6 @@ local function show_word(word)
 end
 
 -- +-------------------------------------------------------+
--- [                  Fetch Word Definition               ]
--- +-------------------------------------------------------+
----Fetch word definition
----@param word string
----@param callback fun(result: table|nil)
-function M.get_winfo(word, callback)
-  if not word or word == "" then
-    callback(nil)
-    return
-  end
-
-  vim.system(
-    { "curl", "-s", "https://api.dictionaryapi.dev/api/v2/entries/en/" .. word },
-    { text = true },
-    function(obj)
-      vim.schedule(function()
-        if obj.code ~= 0 then
-          vim.notify(
-            "Failed to fetch definition for: " .. word,
-            vim.log.levels.WARN
-          )
-          callback(nil)
-          return
-        end
-
-        local ok, data = pcall(vim.json.decode, obj.stdout)
-        if not ok or type(data) ~= "table" or #data == 0 then
-          vim.notify("No definition found for: " .. word, vim.log.levels.WARN)
-          callback(nil)
-          return
-        end
-
-        local ipa = data[1].phonetic
-          or first_nonempty(data[1].phonetics, "text")
-        local result = {}
-
-        for _, meaning in ipairs(data[1].meanings or {}) do
-          local defs = {}
-          for _, d in ipairs(meaning.definitions or {}) do
-            table.insert(defs, {
-              definition = d.definition,
-              example = d.example,
-              synonyms = d.synonyms or {},
-              antonyms = d.antonyms or {},
-            })
-          end
-
-          table.insert(result, {
-            partOfSpeech = meaning.partOfSpeech,
-            ipa = ipa,
-            definitions = defs,
-            synonyms = meaning.synonyms or {},
-            antonyms = meaning.antonyms or {},
-          })
-        end
-
-        callback(#result > 0 and result or nil)
-      end)
-    end
-  )
-end
-
--- +-------------------------------------------------------+
 -- [                   Public Lookup                       ]
 -- +-------------------------------------------------------+
 ---@param action? '"lookup"'|'"word"'|'"wotd"'|'"history"'|'"favorites"'
@@ -190,23 +122,7 @@ function M.lookup(action)
     lookup = function()
       vim.ui.input({ prompt = "Word to look up: " }, show_word)
     end,
-    wotd = function()
-      vim.system({
-        "curl",
-        "-s",
-        "https://random-word-api.vercel.app/api?words=1&length="
-          .. math.random(3, 9),
-      }, { text = true }, function(obj)
-        vim.schedule(function()
-          local ok, words = pcall(vim.fn.json_decode, obj.stdout)
-          if ok and type(words) == "table" and words[1] then
-            show_word(words[1])
-          else
-            vim.notify("Failed to fetch random word", vim.log.levels.WARN)
-          end
-        end)
-      end)
-    end,
+    wotd = fn(show_word, api.wotd()),
     history = fn(hh.telescope_picker, show_word),
     favorites = fn(favs.telescope_picker, show_word),
   }
