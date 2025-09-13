@@ -66,8 +66,9 @@ end
 ---@param title string
 ---@param word string
 ---@param fav_mark string?
+---@param enter boolean?
 ---@return integer win
-local function create_float(lines, highlights, title, word, fav_mark)
+local function create_float(lines, highlights, title, word, fav_mark, enter)
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   local bufopts = { scope = "local", buf = buf }
@@ -89,7 +90,7 @@ local function create_float(lines, highlights, title, word, fav_mark)
 
   win_title = win_title .. " " .. word
 
-  local win = vim.api.nvim_open_win(buf, true, {
+  local win = vim.api.nvim_open_win(buf, enter == true, {
     relative = "editor",
     width = width,
     height = height,
@@ -258,18 +259,25 @@ local function show_word(word)
       end
 
       if not def_table then
-        create_float(
+        local error_win = create_float(
           { "(Definition not found)" },
-          { { 0, 0, 20, "ErrorMsg" } },
+          { { 0, 0, 22, "ErrorMsg" } },
           "word",
           word
         )
+        local function close_win()
+          if vim.api.nvim_win_is_valid(error_win) then
+            vim.api.nvim_win_close(error_win, true)
+          end
+        end
+
+        vim.defer_fn(close_win, 2000)
         return
       end
 
       local lines, highlights = build_definition_lines(def_table)
       local fav_mark = favs.has(word) and "" or ""
-      local win = create_float(lines, highlights, "word", word, fav_mark)
+      local win = create_float(lines, highlights, "word", word, fav_mark, true)
 
       local opts = {
         buffer = vim.api.nvim_win_get_buf(win),
