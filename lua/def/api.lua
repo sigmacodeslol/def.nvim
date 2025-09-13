@@ -31,7 +31,7 @@ function M.get_winfo(word, callback)
         end
 
         local ipa = data[1].phonetic
-          or first_nonempty(data[1].phonetics, "text")
+          or require("def.f").first_nonempty(data[1].phonetics, "text")
         local result = {}
 
         for _, meaning in ipairs(data[1].meanings or {}) do
