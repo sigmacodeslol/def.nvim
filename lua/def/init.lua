@@ -13,12 +13,23 @@ local fn = require("def.f").fn
 -- [                        Setup                          ]
 -- +-------------------------------------------------------+
 ---Setup the plugin configuration
----@param opts table?
+---@param opts? def.setup.Opts
 function M.setup(opts)
   if opts then
     for k, v in pairs(opts) do
       config[k] = v
     end
+  end
+
+  if config.cmd then
+    vim.api.nvim_create_user_command("Def", function(f)
+      M.lookup(f.args)
+    end, {
+      nargs = 1,
+      complete = function()
+        return { "lookup", "word", "wotd", "history", "favorites" }
+      end,
+    })
   end
 end
 
