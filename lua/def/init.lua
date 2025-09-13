@@ -64,9 +64,10 @@ end
 ---@param lines string[]
 ---@param highlights table[]
 ---@param title string
+---@param word string
 ---@param fav_mark string?
 ---@return integer win
-local function create_float(lines, highlights, title, fav_mark)
+local function create_float(lines, highlights, title, word, fav_mark)
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   local bufopts = { scope = "local", buf = buf }
@@ -85,6 +86,8 @@ local function create_float(lines, highlights, title, fav_mark)
   local height = math.min(config.height, #lines + 2)
   local win_title = fav_mark and "[" .. fav_mark .. " " .. title .. "]"
     or "[" .. title .. "]"
+
+  win_title = win_title .. " " .. word
 
   local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
@@ -203,6 +206,20 @@ local function build_definition_lines(def_table)
     table.insert(lines, "")
   end
 
+  local syn = def_table[1].synonyms
+  if syn and #syn > 0 then
+    table.insert(lines, "synonyms: " .. table.concat(syn, ", "))
+    table.insert(highlights, { #lines - 1, 0, 10, "Keyword" })
+    table.insert(highlights, { #lines - 1, 10, #lines[#lines], "Identifier" })
+  end
+
+  local ant = def_table[1].antonyms
+  if ant and #ant > 0 then
+    table.insert(lines, "antonyms: " .. table.concat(ant, ", "))
+    table.insert(highlights, { #lines - 1, 4, 12, "Keyword" })
+    table.insert(highlights, { #lines - 1, 12, #lines[#lines], "Identifier" })
+  end
+
   return lines, highlights
 end
 
@@ -244,14 +261,15 @@ local function show_word(word)
         create_float(
           { "(Definition not found)" },
           { { 0, 0, 20, "ErrorMsg" } },
-          "word"
+          "word",
+          word
         )
         return
       end
 
       local lines, highlights = build_definition_lines(def_table)
       local fav_mark = favs.has(word) and "" or ""
-      local win = create_float(lines, highlights, "word", fav_mark)
+      local win = create_float(lines, highlights, "word", word, fav_mark)
 
       local opts = {
         buffer = vim.api.nvim_win_get_buf(win),
