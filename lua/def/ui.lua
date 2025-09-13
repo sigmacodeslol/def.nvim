@@ -81,8 +81,8 @@ function M.build_definition_lines(def_table)
   local ant = def_table[1].antonyms
   if ant and #ant > 0 then
     table.insert(lines, "antonyms: " .. table.concat(ant, ", "))
-    table.insert(highlights, { #lines - 1, 4, 12, "Keyword" })
-    table.insert(highlights, { #lines - 1, 12, #lines[#lines], "Identifier" })
+    table.insert(highlights, { #lines - 1, 0, 10, "Keyword" })
+    table.insert(highlights, { #lines - 1, 10, #lines[#lines], "Identifier" })
   end
 
   return lines, highlights
