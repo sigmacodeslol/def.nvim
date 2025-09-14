@@ -25,11 +25,11 @@ def.nvim is a lightweight Neovim plugin for quickly looking up word definitions,
 {
   "thesignumt/def.nvim",
   dependencies = {"nvim-telescope/telescope.nvim"},
-  config = function()
-    require("def").setup({
-      width = 75,    -- optional, default: 75
-      height = 36,   -- optional, default: 36
-    })
+  opts = {
+    -- your opts
+  },
+  config = function(_, opts)
+    require('def').setup(opts)
   end
 }
 ```
@@ -97,12 +97,13 @@ Configure floating window dimensions in `setup()`:
 
 ```lua
 require("def").setup({
+  cmd = true,   -- user command :Def
   width = 80,   -- max width of floating window
   height = 40,  -- max height of floating window
 })
 ```
 
-Defaults: `width = 75`, `height = 36`
+These are the default configuration options.
 
 ---
 
