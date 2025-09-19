@@ -6,14 +6,14 @@ def.nvim is a lightweight Neovim plugin for quickly looking up word definitions,
 
 ## Features
 
-* Lookup the definition of any word under the cursor or via input.
-* Display pronunciations (IPA) and examples.
-* Highlight keywords, definitions, synonyms, and antonyms in a readable floating window.
-* Add words to favorites for quick reference.
-* View a history of previously looked-up words.
-* Fetch a random word of the day (WOTD) for vocabulary building.
-* Integrates with [Telescope](https://github.com/nvim-telescope/telescope.nvim) for history and favorites search.
-* Minimal dependencies — uses native Neovim APIs and Lua.
+- Lookup the definition of any word under the cursor or via input.
+- Display pronunciations (IPA) and examples.
+- Highlight keywords, definitions, synonyms, and antonyms in a readable floating window.
+- Add words to favorites for quick reference.
+- View a history of previously looked-up words.
+- Fetch a random word of the day (WOTD) for vocabulary building.
+- Integrates with [Telescope](https://github.com/nvim-telescope/telescope.nvim) for history and favorites search.
+- Minimal dependencies — uses native Neovim APIs and Lua.
 
 ---
 
@@ -45,6 +45,12 @@ use {
   end
 }
 ```
+
+---
+
+## Preview
+
+![preview](preview.png)
 
 ---
 
@@ -84,10 +90,10 @@ require("def").lookup("favorites")
 
 ## Keymaps in the floating window
 
-* `q` / `<Esc>` → Close the window
-* `?` → Show help keymaps
-* `ga` → Add the current word to favorites
-* `gA` → Remove the current word from favorites
+- `q` / `<Esc>` → Close the window
+- `?` → Show help keymaps
+- `ga` → Add the current word to favorites
+- `gA` → Remove the current word from favorites
 
 ---
 
@@ -109,10 +115,10 @@ These are the default configuration options.
 
 ## Dependencies
 
-* Neovim 0.8+
-* Lua
-* `curl` command-line tool (for fetching word definitions)
-* [Telescope.nvim](https://github.com/nvim-telescope/telescope.nvim) (optional but recommended)
+- Neovim 0.8+
+- Lua
+- `curl` command-line tool (for fetching word definitions)
+- [Telescope.nvim](https://github.com/nvim-telescope/telescope.nvim) (optional but recommended)
 
 ---
 
