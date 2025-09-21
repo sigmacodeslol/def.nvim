@@ -2,6 +2,8 @@
 
 def.nvim is a lightweight Neovim plugin for quickly looking up word definitions, examples, synonyms, and antonyms directly in a floating window. It supports word history, favorites, random word exploration, and integrates with Telescope for a smoother experience.
 
+this plugin was made for my neovim config.. so there are probably bigger, better, actively maintained plugins than this.
+
 ---
 
 ## Features
